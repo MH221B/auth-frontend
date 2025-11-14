@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useQueryClient } from '@tanstack/react-query'
 import { initAxios } from "../services/axiosClient";
 import api from "../services/axiosClient";
 import { broadcast, subscribe } from "../lib/broadcast";
@@ -29,6 +30,7 @@ function parseJwtExp(token: string | null): number | null {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const refreshTimer = useRef<number | null>(null);
+  const queryClient = useQueryClient();
 
   const clearRefresh = () => {
     if (refreshTimer.current !== null) {
@@ -100,8 +102,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       setAccessToken(null);
       clearRefresh();
+      // clear react-query in-memory cache so sensitive data is removed
+      try {
+        await queryClient.cancelQueries();
+        // remove all queries from cache
+        queryClient.removeQueries();
+      } catch (e) {
+        // ignore cache clearing errors
+      }
     }
-  }, []);
+  }, [queryClient]);
 
   const getAccessToken = useCallback(() => accessToken, [accessToken]);
 
@@ -142,10 +152,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // another tab logged out; clear immediately
         setAccessToken(null);
         clearRefresh();
+        try {
+          queryClient.cancelQueries();
+          queryClient.removeQueries();
+        } catch (e) {
+          // ignore
+        }
       }
     });
     return unsub;
-  }, [accessToken, silentRefresh]);
+  }, [accessToken, silentRefresh, queryClient]);
 
   const value: AuthContextType = {
     accessToken,
