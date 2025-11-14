@@ -1,6 +1,8 @@
 import LoginCard from '@/components/LoginCard'
 import RegisterCard from '@/components/RegisterCard'
 import HomePage from '@/components/HomePage'
+import AdminPage from '@/components/AdminPage'
+import RequireRole from '@/components/RequireRole'
 import {
   BrowserRouter as Router,
   Routes,
@@ -18,6 +20,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginCard />} />
           <Route path="/signup" element={<RegisterCard />} />
+          <Route path="/admin" element={<RequireRole roles="ROLE_ADMIN"><AdminPage /></RequireRole>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>
