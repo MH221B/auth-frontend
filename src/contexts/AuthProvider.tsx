@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { initAxios } from "../services/axiosClient";
 import api from "../services/axiosClient";
+import { broadcast, subscribe } from "../lib/broadcast";
 
 type AuthContextType = {
   accessToken: string | null;
@@ -76,6 +77,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const token = data?.token ?? null;
       setAccessToken(token);
       scheduleRefresh(token);
+      // notify other tabs that a login occurred so they can attempt
+      // a background silent refresh to obtain an access token.
+      try {
+        broadcast("login");
+      } catch (e) {
+        // ignore
+      }
     } catch (err) {
       throw new Error("Login failed");
     }
@@ -85,6 +93,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await api.post(`/user/logout`);
     } finally {
+      try {
+        broadcast("logout");
+      } catch (e) {
+        // ignore
+      }
       setAccessToken(null);
       clearRefresh();
     }
@@ -116,6 +129,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // initialize axios client so it can attach tokens and handle refresh/logout
     initAxios({ getAccessToken, setAccessToken, logout });
   }, [getAccessToken, logout]);
+
+  useEffect(() => {
+    // subscribe to cross-tab auth events
+    const unsub = subscribe((action) => {
+      if (action === "login") {
+        // another tab logged in; if we don't have a token try to silently refresh
+        if (!accessToken) {
+          silentRefresh().catch(() => {});
+        }
+      } else if (action === "logout") {
+        // another tab logged out; clear immediately
+        setAccessToken(null);
+        clearRefresh();
+      }
+    });
+    return unsub;
+  }, [accessToken, silentRefresh]);
 
   const value: AuthContextType = {
     accessToken,
