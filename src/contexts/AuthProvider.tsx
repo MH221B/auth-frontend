@@ -92,11 +92,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const getAccessToken = useCallback(() => accessToken, [accessToken]);
 
+  // Attempt a single background silent refresh on initial mount if we don't
+  // already have an access token (e.g. user reloads page but httpOnly
+  // refresh cookie still exists). Also, if we do have a token on mount,
+  // ensure the refresh timer is scheduled.
+  const initialRefreshTried = useRef(false);
   useEffect(() => {
-    // Try to obtain token silently on mount (refresh token in httpOnly cookie expected)
-    silentRefresh();
+    if (!initialRefreshTried.current) {
+      initialRefreshTried.current = true;
+      if (!accessToken) {
+        // background attempt; failures are swallowed inside silentRefresh
+        silentRefresh().catch(() => {});
+      } else {
+        // ensure we have a scheduled refresh for an existing token
+        scheduleRefresh(accessToken);
+      }
+    }
+
     return () => clearRefresh();
-  }, [silentRefresh]);
+  }, [accessToken, scheduleRefresh, silentRefresh]);
 
   useEffect(() => {
     // initialize axios client so it can attach tokens and handle refresh/logout
