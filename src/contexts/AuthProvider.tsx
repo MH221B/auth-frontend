@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-
-const API_URL = import.meta.env.VITE_API_URL as string;
+import { initAxios } from "../services/axiosClient";
+import api from "../services/axiosClient";
 
 type AuthContextType = {
   accessToken: string | null;
@@ -50,19 +50,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const silentRefresh = useCallback(async (): Promise<void> => {
     try {
-      const res = await fetch(`${API_URL}/user/refresh`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!res.ok) {
+      // Use centralized axios instance so interceptors/queueing apply
+      const res = await api.post(`/user/refresh`);
+      const data = res.data;
+      // backend returns the access token in the `token` field
+      const token = data?.token ?? null;
+      if (!token) {
         setAccessToken(null);
         clearRefresh();
         return;
       }
-      const data = await res.json();
-      // backend returns the access token in the `token` field
-      const token = data?.token ?? null;
       setAccessToken(token);
       scheduleRefresh(token);
     } catch (err) {
@@ -72,26 +69,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [scheduleRefresh]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await fetch(`${API_URL}/user/login`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) throw new Error("Login failed");
-    const data = await res.json();
-    // backend returns the access token in the `token` field
-    const token = data?.token ?? null;
-    setAccessToken(token);
-    scheduleRefresh(token);
+    try {
+      const res = await api.post(`/user/login`, { email, password });
+      const data = res.data;
+      // backend returns the access token in the `token` field
+      const token = data?.token ?? null;
+      setAccessToken(token);
+      scheduleRefresh(token);
+    } catch (err) {
+      throw new Error("Login failed");
+    }
   }, [scheduleRefresh]);
 
   const logout = useCallback(async () => {
     try {
-      await fetch(`${API_URL}/user/logout`, {
-        method: "POST",
-        credentials: "include",
-      });
+      await api.post(`/user/logout`);
     } finally {
       setAccessToken(null);
       clearRefresh();
@@ -105,6 +97,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     silentRefresh();
     return () => clearRefresh();
   }, [silentRefresh]);
+
+  useEffect(() => {
+    // initialize axios client so it can attach tokens and handle refresh/logout
+    initAxios({ getAccessToken, setAccessToken, logout });
+  }, [getAccessToken, logout]);
 
   const value: AuthContextType = {
     accessToken,
