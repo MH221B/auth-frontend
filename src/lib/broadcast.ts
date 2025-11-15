@@ -12,8 +12,9 @@ type BroadcastPayload = {
 export function broadcast(action: AuthMessage, clientId?: string) {
   const payload: BroadcastPayload = { action, ts: Date.now(), clientId };
   try {
-    if (typeof BroadcastChannel !== "undefined") {
-      const bc = new BroadcastChannel(CHANNEL);
+    const g = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window as any : undefined as any);
+    if (g && typeof g.BroadcastChannel !== "undefined") {
+      const bc = new g.BroadcastChannel(CHANNEL);
       bc.postMessage(payload);
       bc.close();
       return;
@@ -24,9 +25,17 @@ export function broadcast(action: AuthMessage, clientId?: string) {
 
   try {
     // Write a small object so storage events fire across tabs.
-    localStorage.setItem(CHANNEL, JSON.stringify(payload));
-    // Immediately remove to avoid leaving stale data
-    localStorage.removeItem(CHANNEL);
+    const g = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window as any : undefined as any);
+    if (!g || !g.localStorage) return;
+    // Ensure the storage event has time to propagate to other tabs by removing on next tick
+    g.localStorage.setItem(CHANNEL, JSON.stringify(payload));
+    setTimeout(() => {
+      try {
+        g.localStorage.removeItem(CHANNEL);
+      } catch (e) {
+        // ignore
+      }
+    }, 0);
   } catch (e) {
     // ignore
   }
@@ -35,8 +44,9 @@ export function broadcast(action: AuthMessage, clientId?: string) {
 // subscribe will ignore messages whose clientId matches `localClientId` if provided
 export function subscribe(handler: (action: AuthMessage) => void, localClientId?: string) {
   try {
-    if (typeof BroadcastChannel !== "undefined") {
-      const bc = new BroadcastChannel(CHANNEL);
+    const g = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window as any : undefined as any);
+    if (g && typeof g.BroadcastChannel !== "undefined") {
+      const bc = new g.BroadcastChannel(CHANNEL);
       const listener = (ev: MessageEvent) => {
         try {
           const data = ev.data as BroadcastPayload | string;
@@ -66,6 +76,11 @@ export function subscribe(handler: (action: AuthMessage) => void, localClientId?
     // fallback to storage event
   }
 
+  const g = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window as any : undefined as any);
+  if (!g || !g.addEventListener) {
+    return () => {};
+  }
+
   const storageListener = (ev: StorageEvent) => {
     if (ev.key !== CHANNEL) return;
     if (!ev.newValue) return;
@@ -79,6 +94,6 @@ export function subscribe(handler: (action: AuthMessage) => void, localClientId?
     }
   };
 
-  window.addEventListener("storage", storageListener);
-  return () => window.removeEventListener("storage", storageListener);
+  g.addEventListener("storage", storageListener as EventListener);
+  return () => g.removeEventListener("storage", storageListener as EventListener);
 }
