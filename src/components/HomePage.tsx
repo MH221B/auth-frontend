@@ -51,7 +51,7 @@ const HomePage: React.FC = () => {
             {isAuthenticated ? (
               <div className="flex items-center gap-3">
                 <div className="text-sm text-muted-foreground">Signed in as {email ?? 'User'}</div>
-                <Button variant="outline" onClick={handleLogout}>Logout</Button>
+                <Button variant="outline" className="text-primary" onClick={handleLogout}>Logout</Button>
               </div>
             ) : (
               <Button asChild variant="outline">

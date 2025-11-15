@@ -31,6 +31,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const refreshTimer = useRef<number | null>(null);
   const queryClient = useQueryClient();
+  const clientIdRef = useRef<string>(
+    typeof crypto !== "undefined" && typeof (crypto as any).randomUUID === "function"
+      ? (crypto as any).randomUUID()
+      : Math.random().toString(36).slice(2)
+  );
+  const pendingLoginBroadcast = useRef(false);
+  // tracks whether the user explicitly logged out so we avoid
+  // attempting background refreshes (which can cause 401 noise)
+  const isLoggedOutRef = useRef(false);
 
   const clearRefresh = () => {
     if (refreshTimer.current !== null) {
@@ -63,6 +72,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearRefresh();
         return;
       }
+      // successful refresh implies we're not logged-out
+      isLoggedOutRef.current = false;
       setAccessToken(token);
       scheduleRefresh(token);
     } catch (err) {
@@ -77,15 +88,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = res.data;
       // backend returns the access token in the `token` field
       const token = data?.token ?? null;
+      // clear logged-out flag when login succeeds
+      isLoggedOutRef.current = false;
       setAccessToken(token);
       scheduleRefresh(token);
       // notify other tabs that a login occurred so they can attempt
       // a background silent refresh to obtain an access token.
-      try {
-        broadcast("login");
-      } catch (e) {
-        // ignore
-      }
+      // mark that we should broadcast the login after state flush
+      pendingLoginBroadcast.current = true;
     } catch (err) {
       throw new Error("Login failed");
     }
@@ -95,8 +105,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await api.post(`/user/logout`);
     } finally {
+      // mark explicit logout so background refresh attempts are skipped
+      isLoggedOutRef.current = true;
       try {
-        broadcast("logout");
+        broadcast("logout", clientIdRef.current);
       } catch (e) {
         // ignore
       }
@@ -123,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!initialRefreshTried.current) {
       initialRefreshTried.current = true;
-      if (!accessToken) {
+      if (!accessToken && !isLoggedOutRef.current) {
         // background attempt; failures are swallowed inside silentRefresh
         silentRefresh().catch(() => {});
       } else {
@@ -144,11 +156,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // subscribe to cross-tab auth events
     const unsub = subscribe((action) => {
       if (action === "login") {
+        // another tab logged in; clear logged-out marker
+        isLoggedOutRef.current = false;
         // another tab logged in; if we don't have a token try to silently refresh
-        if (!accessToken) {
+        if (!accessToken && !isLoggedOutRef.current) {
           silentRefresh().catch(() => {});
         }
       } else if (action === "logout") {
+        // another tab logged out; mark logged-out so we skip background refresh
+        isLoggedOutRef.current = true;
         // another tab logged out; clear immediately
         setAccessToken(null);
         clearRefresh();
@@ -159,9 +175,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // ignore
         }
       }
-    });
+    }, clientIdRef.current);
+    // pass our local client id so we don't react to our own broadcasts
+    // (subscribe already ignores messages from the same clientId)
+    // Note: subscribe returns an unsubscribe function
+    // We reassign using the clientId below by creating the subscription with clientId
+    // (Implementation detail: the subscribe call above will be replaced by the one below via redeclaration)
     return unsub;
   }, [accessToken, silentRefresh, queryClient]);
+
+  // If login just occurred in this tab, broadcast it now that
+  // `accessToken` has been updated (prevents same-tab double refresh).
+  useEffect(() => {
+    if (pendingLoginBroadcast.current) {
+      try {
+        broadcast("login", clientIdRef.current);
+      } catch (e) {
+        // ignore errors
+      } finally {
+        pendingLoginBroadcast.current = false;
+      }
+    }
+  }, [accessToken]);
 
   const value: AuthContextType = {
     accessToken,
