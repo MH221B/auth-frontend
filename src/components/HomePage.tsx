@@ -26,7 +26,7 @@ const HomePage: React.FC = () => {
     ? [payload.roles]
     : [];
 
-  const showAdmin = roles.includes("ROLE_ADMIN");
+  const showAdmin = roles.includes("ADMIN");
   const email = payload?.username ?? payload?.sub ?? null;
 
   const handleLogout = async () => {

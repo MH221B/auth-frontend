@@ -20,7 +20,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginCard />} />
           <Route path="/signup" element={<RegisterCard />} />
-          <Route path="/admin" element={<RequireRole roles="ROLE_ADMIN"><AdminPage /></RequireRole>} />
+          <Route path="/admin" element={<RequireRole roles="ADMIN"><AdminPage /></RequireRole>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>
