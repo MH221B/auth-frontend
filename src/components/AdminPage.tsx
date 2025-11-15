@@ -1,6 +1,13 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthProvider";
 
 function decodeJwtPayload(token: string | null): any | null {
@@ -48,8 +55,26 @@ const AdminPage: React.FC = () => {
         <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
 
         <section className="mb-6">
-          <h2 className="text-lg font-semibold">Signed in as</h2>
-          <p className="mt-2">{email ?? 'Unknown user'}</p>
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle>Account</CardTitle>
+                <CardDescription>Currently signed-in user</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <div className="text-sm text-muted-foreground">Email</div>
+                  <div className="font-medium">{email ?? 'Unknown user'}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground">Roles</div>
+                  <div className="font-medium">{roles.length ? roles.join(', ') : 'None'}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </section>
 
         <section>

@@ -1,6 +1,13 @@
 import * as React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthProvider";
 
 function decodeJwtPayload(token: string | null): any | null {
@@ -50,7 +57,6 @@ const HomePage: React.FC = () => {
             )}
             {isAuthenticated ? (
               <div className="flex items-center gap-3">
-                <div className="text-sm text-muted-foreground">Signed in as {email ?? 'User'}</div>
                 <Button variant="outline" className="text-primary" onClick={handleLogout}>Logout</Button>
               </div>
             ) : (
@@ -61,7 +67,32 @@ const HomePage: React.FC = () => {
           </div>
         </div>
       </nav>
-      <main className="flex-1" />
+      <main className="flex-1">
+        {isAuthenticated && (
+          <div className="max-w-4xl mx-auto px-4 py-6">
+            <Card>
+              <CardHeader>
+                <div>
+                  <CardTitle>Dashboard</CardTitle>
+                  <CardDescription>Account overview and roles</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <div className="text-sm text-muted-foreground">Email</div>
+                    <div className="font-medium">{email ?? "Unknown"}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Roles</div>
+                    <div className="font-medium">{roles.length ? roles.join(", ") : "None"}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </main>
     </div>
   );
 };
